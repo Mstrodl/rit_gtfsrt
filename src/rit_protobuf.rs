@@ -1,5 +1,5 @@
 use crate::alerts::get_alerts;
-use gtfs_rt::{FeedHeader, FeedEntity, FeedMessage};
+use gtfs_rt::{FeedEntity, FeedHeader, FeedMessage};
 use prost::Message;
 use snafu::prelude::*;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -18,6 +18,7 @@ pub async fn rit_protobuf(_req: Request<()>) -> tide::Result {
 pub enum GenFeedError {
   ParseError,
   HttpError,
+  ZipError,
 }
 
 pub async fn get_feed() -> Result<FeedMessage, GenFeedError> {

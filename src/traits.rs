@@ -1,4 +1,4 @@
-use gtfs_rt::{TranslatedString, translated_string::Translation};
+use gtfs_rt::{translated_string::Translation, TranslatedString};
 
 pub trait Translate {
   fn into_translation(self) -> TranslatedString;
@@ -7,12 +7,10 @@ pub trait Translate {
 impl Translate for String {
   fn into_translation(self) -> TranslatedString {
     TranslatedString {
-      translation: vec![
-        Translation {
-          text: self,
-          language: None,
-        }
-      ]
+      translation: vec![Translation {
+        text: self,
+        language: None,
+      }],
     }
   }
 }

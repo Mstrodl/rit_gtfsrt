@@ -1,5 +1,8 @@
+#![feature(future_join)]
+
 mod alerts;
 mod rit_protobuf;
+mod schedule;
 mod traits;
 use crate::rit_protobuf::rit_protobuf;
 
