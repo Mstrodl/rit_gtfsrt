@@ -6,10 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-std = {version = "1.12.0", features = ["attributes"]}
+async-std = {version = "1.12.0", features = ["attributes", "tokio1"]}
+chrono = "0.4.23"
 gtfs-rt = "0.2.1"
 prost = "0.8.0"
-reqwest = "0.11.14"
+reqwest = {version = "0.11.14", features = ["json"]}
 serde = "1.0.152"
 snafu = "0.7.4"
 tide = "0.16.0"

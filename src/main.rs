@@ -1,4 +1,6 @@
+mod alerts;
 mod rit_protobuf;
+mod traits;
 use crate::rit_protobuf::rit_protobuf;
 
 #[async_std::main]
