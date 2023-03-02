@@ -1,7 +1,7 @@
 use crate::alerts::get_alerts;
-use crate::schedule::get_schedule;
 use crate::arrivals::get_trip_arrivals;
-use gtfs_rt::{FeedEntity, FeedHeader, FeedMessage};
+use crate::schedule::get_schedule;
+use gtfs_rt::{feed_header::Incrementality, FeedEntity, FeedHeader, FeedMessage};
 use prost::Message;
 use serde::de::DeserializeOwned;
 use std::error::Error;
@@ -15,7 +15,7 @@ pub async fn rit_protobuf(_req: Request<()>) -> tide::Result {
   // if let Err(GenFeedError::Http(err, url)) = &feed {
   //   println!("Errenous url: {:?}", err.url());
   // }
-  println!("Feed is: {:?}", feed);
+  // println!("Feed is: {:?}", feed);
   Ok(
     Response::builder(200)
       .body(Message::encode_to_vec(&feed?))
@@ -57,7 +57,7 @@ pub async fn get_feed() -> Result<FeedMessage, GenFeedError> {
   Ok(FeedMessage {
     header: FeedHeader {
       gtfs_realtime_version: "2.0".to_owned(),
-      incrementality: None,
+      incrementality: Some(Incrementality::FullDataset.into()),
       timestamp: Some(
         SystemTime::now()
           .duration_since(UNIX_EPOCH)

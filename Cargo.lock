@@ -1877,6 +1877,7 @@ dependencies = [
  "chrono-tz",
  "csv",
  "gtfs-rt",
+ "itertools",
  "prost",
  "reqwest",
  "serde",
