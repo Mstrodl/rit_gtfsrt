@@ -1,3 +1,4 @@
+use crate::rit_protobuf::request;
 use crate::rit_protobuf::GenFeedError;
 use crate::traits::Translate;
 use chrono::DateTime;
@@ -24,14 +25,10 @@ struct Announcement {
 const RIT_AGENCY_ID: &str = "643";
 
 pub async fn get_alerts() -> Result<Vec<FeedEntity>, GenFeedError> {
-  let announcements = reqwest::get(format!(
+  let announcements = request::<Announcements>(&format!(
     "https://feeds.transloc.com/3/announcements?contents=true&agencies={RIT_AGENCY_ID}"
   ))
-  .await
-  .map_err(|_| GenFeedError::HttpError)?
-  .json::<Announcements>()
-  .await
-  .map_err(|_| GenFeedError::ParseError)?;
+  .await?;
   Ok(
     announcements
       .announcements

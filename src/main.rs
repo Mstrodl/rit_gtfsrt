@@ -1,6 +1,7 @@
 #![feature(future_join)]
 
 mod alerts;
+mod arrivals;
 mod rit_protobuf;
 mod schedule;
 mod traits;
@@ -11,7 +12,7 @@ async fn main() -> tide::Result<()> {
   let mut app = tide::new();
   app.at("/rit.protobuf").get(rit_protobuf);
   let addr = "0.0.0.0:6969";
-  println!("Ready to go at: {}", addr);
+  println!("Ready to go at: http://{}", addr);
   app.listen(addr).await?;
   Ok(())
 }
