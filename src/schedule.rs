@@ -1,8 +1,8 @@
 use crate::rit_protobuf::request;
 use crate::rit_protobuf::GenFeedError;
-use chrono::{DateTime, Duration, Local, NaiveDateTime, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Duration, TimeZone, Timelike, Utc};
 use chrono_tz::{America::New_York, Tz};
-use gtfs_rt::{TripDescriptor, trip_descriptor::ScheduleRelationship};
+use gtfs_rt::{trip_descriptor::ScheduleRelationship, TripDescriptor};
 use serde::de;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -12,6 +12,7 @@ use std::future::join;
 use std::io::Cursor;
 use zip::ZipArchive;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 struct Stop {
   code: String,
@@ -30,9 +31,11 @@ struct StopOutput {
 #[derive(Debug, Deserialize)]
 struct RouteOutput {
   routes: Vec<RawRoute>,
+  #[allow(dead_code)]
   success: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct RawRoute {
   agency_id: u64,
@@ -60,6 +63,7 @@ struct Route {
   stops: Vec<Stop>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct CSVRoute {
   route_id: u64,
@@ -77,12 +81,14 @@ pub struct StopTime {
   pub trip_id: u64,
   #[serde(deserialize_with = "day_time_deserializer")]
   arrival_time: (String, u64),
+  #[allow(dead_code)]
   #[serde(deserialize_with = "day_time_deserializer")]
   departure_time: (String, u64),
   pub stop_id: u64,
   pub stop_sequence: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Arrival {
   agency_id: u64,
@@ -97,6 +103,7 @@ pub struct Arrival {
   pub vehicle_id: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Vehicle {
   pub id: u64,
@@ -167,6 +174,7 @@ fn read_csv<T: DeserializeOwned>(
   Ok(reader.filter_map(|item| item.ok()).collect::<Vec<T>>())
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct CSVTrip {
   trip_id: u64,
@@ -190,9 +198,11 @@ struct CSVFrequency {
   #[serde(deserialize_with = "day_time_deserializer")]
   end_time: (String, u64),
   headway_secs: u64,
+  #[allow(dead_code)]
   exact_times: u8,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct CSVStop {
   stop_id: u64,
@@ -206,7 +216,7 @@ struct CSVStop {
 }
 
 pub struct Schedule {
-  zip: ZipArchive<Cursor<Vec<u8>>>,
+  // zip: ZipArchive<Cursor<Vec<u8>>>,
   routes: HashMap<u64, Route>,
   csv_routes: HashMap<String, CSVRoute>,
   csv_stop_times: Vec<StopTime>,
@@ -215,7 +225,7 @@ pub struct Schedule {
   csv_frequencies: HashMap<u64, CSVFrequency>,
   pub arrivals: Vec<Arrival>,
   pub vehicles: HashMap<u64, Vehicle>,
-  stops: HashMap<u64, Stop>,
+  // stops: HashMap<u64, Stop>,
 }
 pub async fn get_schedule() -> Result<Schedule, GenFeedError> {
   let bytes = reqwest::get("https://api.transloc.com/gtfs/rit.zip")
@@ -283,7 +293,6 @@ pub async fn get_schedule() -> Result<Schedule, GenFeedError> {
       .into_iter()
       .map(|stop| (stop.stop_code.clone(), stop)),
   );
-  let stops = HashMap::from_iter(stops.stops.into_iter().map(|stop| (stop.id, stop)));
   let csv_frequencies: Vec<CSVFrequency> = read_csv(&mut zip, "frequencies.txt")?;
   let csv_frequencies = HashMap::from_iter(
     csv_frequencies
@@ -298,9 +307,7 @@ pub async fn get_schedule() -> Result<Schedule, GenFeedError> {
   );
 
   Ok(Schedule {
-    zip,
     routes,
-    stops,
     csv_routes,
     csv_stop_times,
     csv_frequencies,
@@ -326,17 +333,8 @@ fn get_arrival_time(arrival: &Arrival) -> (DateTime<Tz>, u64) {
     .single()
     .expect("Invalid arrival timestamp?");
   let date = date.with_timezone(&New_York);
-  println!("Arriving @ {date}");
-  // Get current time as a NaiveDateTime
-  // let now = Local::now();
-  // let now = NaiveDateTime::new(now.date().naive_local(), now.time());
-  // println!("Present time is {now}");
-  // let delta = arrival_time - now;
-  // let seconds = delta.num_seconds();
-  // println!("Getting arrival time: {} minutes from now (abs={})", seconds / 60, arrival.timestamp);
 
   let secs: u64 = date.num_seconds_from_midnight().into();
-  println!("secs={secs}");
   if date.hour() < 4 {
     // We want to look at yesterday!
     (date, secs + Duration::days(1).num_seconds() as u64)
@@ -345,13 +343,17 @@ fn get_arrival_time(arrival: &Arrival) -> (DateTime<Tz>, u64) {
   }
 }
 
+fn within_buffer(start_secs: u64, now: u64, end_secs: u64) -> bool {
+  (start_secs - 60 * 10) < now && now < (end_secs + 60 * 10)
+}
+
 impl Schedule {
   pub fn find_trip_id(&self, arrival: &Arrival) -> Option<(TripDescriptor, StopTime)> {
     let route = self.routes.get(&arrival.route_id)?;
     let csv_route = self.csv_routes.get(&route.long_name)?;
     let stop = route.stops.iter().find(|stop| stop.id == arrival.stop_id)?;
     let csv_stop = self.csv_stops.get(&stop.code)?;
-    let (arrival_date, arrival_time) = get_arrival_time(arrival);
+    let arrival_time = get_arrival_time(arrival).1;
 
     println!();
     for stop_time in &self.csv_stop_times {
@@ -367,62 +369,59 @@ impl Schedule {
     for trip in &self.csv_trips {
       if csv_route.route_id == trip.route_id {
         println!("Found a probable trip: {:?}", trip);
-        let frequency = match self.csv_frequencies.get(&trip.trip_id) {
-          Some(frequency) => frequency,
-          None => {
-            // TODO: Handle one-off trips
-            println!("No frequency for trip {}", trip.trip_id);
-            continue;
-          }
-        };
+        if let Some(frequency) = self.csv_frequencies.get(&trip.trip_id) {
+          for stop_time in &self.csv_stop_times {
+            if stop_time.trip_id != trip.trip_id {
+              continue;
+            }
 
-        for stop_time in &self.csv_stop_times {
-          if stop_time.trip_id != trip.trip_id {
-            continue;
+            if !within_buffer(frequency.start_time.1, arrival_time, frequency.end_time.1) {
+              continue;
+            }
+            let trip_iteration: f64 =
+              (arrival_time - stop_time.arrival_time.1) as f64 / frequency.headway_secs as f64;
+            let trip_iteration = cmp::max(trip_iteration.round() as u64, 0);
+            println!(
+              "Chom.. {}",
+              day_time_serializer(frequency.headway_secs * trip_iteration + frequency.start_time.1,)
+            );
+            return Some((
+              TripDescriptor {
+                trip_id: Some(trip.trip_id.to_string()),
+                route_id: Some(trip.route_id.to_string()),
+                direction_id: None,
+                start_time: Some(day_time_serializer(
+                  frequency.headway_secs * trip_iteration + frequency.start_time.1,
+                )),
+                start_date: None,
+                schedule_relationship: Some(ScheduleRelationship::Scheduled.into()),
+              },
+              stop_time.clone(),
+            ));
           }
-
-          if frequency.start_time.1 > arrival_time || frequency.end_time.1 < arrival_time {
-            continue;
+        } else {
+          for stop_time in &self.csv_stop_times {
+            if stop_time.trip_id != trip.trip_id {
+              continue;
+            }
+            if stop_time.trip_id == trip.trip_id
+              && stop_time.stop_id == csv_stop.stop_id
+              && nearby(arrival_time, stop_time.arrival_time.clone())
+            {
+              // trip and stop_time belong to us!
+              return Some((
+                TripDescriptor {
+                  trip_id: Some(trip.trip_id.to_string()),
+                  route_id: Some(trip.route_id.to_string()),
+                  direction_id: None,
+                  start_time: None,
+                  start_date: None,
+                  schedule_relationship: None,
+                },
+                stop_time.clone(),
+              ));
+            }
           }
-          let relative_time = (stop_time.arrival_time.1 as i64) - (frequency.start_time.1 as i64);
-          let trip_iteration: f64 =
-            (arrival_time - stop_time.arrival_time.1) as f64 / frequency.headway_secs as f64;
-          let trip_iteration = cmp::max(trip_iteration.round() as u64, 0);
-          println!(
-            "Chom.. {}",
-            day_time_serializer(frequency.headway_secs * trip_iteration + frequency.start_time.1,)
-          );
-          return Some((
-            TripDescriptor {
-              trip_id: Some(trip.trip_id.to_string()),
-              route_id: Some(trip.route_id.to_string()),
-              direction_id: None,
-              start_time: Some(day_time_serializer(
-                frequency.headway_secs * trip_iteration + frequency.start_time.1,
-              )),
-              start_date: None,
-              schedule_relationship: Some(ScheduleRelationship::Scheduled.into()),
-            },
-            stop_time.clone(),
-          ));
-
-          // if stop_time.trip_id == trip.trip_id
-          //   && stop_time.stop_id == csv_stop.stop_id
-          //   && nearby(arrival_time, stop_time.arrival_time.clone())
-          // {
-          //   // trip and stop_time belong to us!
-          //   return Some((
-          //     TripDescriptor {
-          //       trip_id: Some(trip.trip_id.to_string()),
-          //       route_id: Some(trip.route_id.to_string()),
-          //       direction_id: None,
-          //       start_time: None,
-          //       start_date: None,
-          //       schedule_relationship: None,
-          //     },
-          //     stop_time.clone(),
-          //   ));
-          // }
         }
       }
     }

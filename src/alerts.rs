@@ -5,11 +5,13 @@ use chrono::DateTime;
 use gtfs_rt::{Alert, EntitySelector, FeedEntity, TimeRange};
 use serde::Deserialize;
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Announcements {
   announcements: Vec<Announcement>,
   success: bool,
 }
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Announcement {
   agency_id: u64,

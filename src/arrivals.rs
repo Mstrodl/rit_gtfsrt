@@ -3,11 +3,10 @@ use crate::schedule::Schedule;
 use gtfs_rt::{
   trip_update::{stop_time_update::ScheduleRelationship, StopTimeEvent, StopTimeUpdate},
   vehicle_position::VehicleStopStatus,
-  FeedEntity, Position, TripDescriptor, TripUpdate, VehicleDescriptor, VehiclePosition,
+  FeedEntity, Position, TripUpdate, VehicleDescriptor, VehiclePosition,
 };
-use std::iter::once;
-use std::time::{SystemTime, UNIX_EPOCH};
 use itertools::Itertools;
+use std::iter::once;
 
 fn mph_to_meters(mph: f32) -> f32 {
   mph * 0.44704
