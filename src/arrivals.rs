@@ -1,4 +1,4 @@
-use crate::rit_protobuf::GenFeedError;
+use crate::protobuf_route::GenFeedError;
 use crate::schedule::Schedule;
 use gtfs_rt::{
   trip_update::{stop_time_update::ScheduleRelationship, StopTimeEvent, StopTimeUpdate},

@@ -2,15 +2,15 @@
 
 mod alerts;
 mod arrivals;
-mod rit_protobuf;
+mod protobuf_route;
 mod schedule;
 mod traits;
-use crate::rit_protobuf::rit_protobuf;
+use crate::protobuf_route::protobuf_route;
 
 #[async_std::main]
 async fn main() -> tide::Result<()> {
   let mut app = tide::new();
-  app.at("/rit.protobuf").get(rit_protobuf);
+  app.at("/rt/:agency_id/:agency_code").get(protobuf_route);
   let addr = "0.0.0.0:6969";
   println!("Ready to go at: http://{}", addr);
   app.listen(addr).await?;

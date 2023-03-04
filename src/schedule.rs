@@ -1,5 +1,5 @@
-use crate::rit_protobuf::request;
-use crate::rit_protobuf::GenFeedError;
+use crate::protobuf_route::request;
+use crate::protobuf_route::GenFeedError;
 use chrono::{DateTime, Duration, TimeZone, Timelike, Utc};
 use chrono_tz::{America::New_York, Tz};
 use gtfs_rt::{trip_descriptor::ScheduleRelationship, TripDescriptor};
@@ -152,7 +152,6 @@ where
   let second = get_time_component::<D>(time_parts[2])?;
   // hour/minute/second to seconds:
   let value = hour * 3600 + minute * 60 + second;
-  // println!("{hour}:{minute}:{second} = {value}");
   Ok((time, value))
 }
 
@@ -227,26 +226,43 @@ pub struct Schedule {
   pub vehicles: HashMap<u64, Vehicle>,
   // stops: HashMap<u64, Stop>,
 }
-pub async fn get_schedule() -> Result<Schedule, GenFeedError> {
+pub async fn get_schedule(agency_id: u64, agency_code: &str) -> Result<Schedule, GenFeedError> {
   let bytes = reqwest::get("https://api.transloc.com/gtfs/rit.zip")
     .await
-    .map_err(|err| GenFeedError::Http(err, "https://api.transloc.com/gtfs/rit.zip".to_owned()))?
+    .map_err(|err| {
+      GenFeedError::Http(
+        err,
+        format!("https://api.transloc.com/gtfs/{agency_code}.zip"),
+      )
+    })?
     .bytes()
     .await
-    .map_err(|err| GenFeedError::Http(err, "https://api.transloc.com/gtfs/rit.zip".to_owned()))?;
+    .map_err(|err| {
+      GenFeedError::Http(
+        err,
+        format!("https://api.transloc.com/gtfs/{agency_code}.zip"),
+      )
+    })?;
   let bytes = Vec::from(bytes);
   let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(GenFeedError::Zip)?;
 
   let (stops, routes, vehicle_statuses) = join!(
     async {
-      request::<StopOutput>("https://feeds.transloc.com/3/stops?include_routes=true&agencies=643")
-        .await
+      request::<StopOutput>(&format!(
+        "https://feeds.transloc.com/3/stops?include_routes=true&agencies={agency_id}"
+      ))
+      .await
     },
-    async { request::<RouteOutput>("https://feeds.transloc.com/3/routes?agencies=643").await },
     async {
-      request::<VehicleStatuses>(
-        "https://feeds.transloc.com/3/vehicle_statuses?agencies=643&include_arrivals=true",
-      )
+      request::<RouteOutput>(&format!(
+        "https://feeds.transloc.com/3/routes?agencies={agency_id}"
+      ))
+      .await
+    },
+    async {
+      request::<VehicleStatuses>(&format!(
+        "https://feeds.transloc.com/3/vehicle_statuses?agencies={agency_id}&include_arrivals=true"
+      ))
       .await
     }
   )
@@ -319,11 +335,8 @@ pub async fn get_schedule() -> Result<Schedule, GenFeedError> {
 }
 
 fn nearby(real_time: u64, seconds: (String, u64)) -> bool {
-  let (orig, seconds) = seconds;
-  // let seconds = seconds / 1000;
+  let seconds = seconds.1;
   let delta = (real_time as i64) - (seconds as i64);
-  // let minutes = (real_time as i64) - SystemTime::now().duration_since(UNIX_EPOCH).as_secs()) / 60;
-  println!("Nearby? Delta is {delta}. Real={real_time}, Schedule={seconds} ({orig})");
   delta < 60 * 10 && delta > -60 * 10
 }
 
@@ -355,20 +368,8 @@ impl Schedule {
     let csv_stop = self.csv_stops.get(&stop.code)?;
     let arrival_time = get_arrival_time(arrival).1;
 
-    println!();
-    for stop_time in &self.csv_stop_times {
-      if stop_time.stop_id == 20 {
-        println!("Stop time={:?}", stop_time);
-      }
-    }
-
-    println!();
-    println!();
-    println!();
-    println!("Found likely route: {}", csv_route.route_long_name);
     for trip in &self.csv_trips {
       if csv_route.route_id == trip.route_id {
-        println!("Found a probable trip: {:?}", trip);
         if let Some(frequency) = self.csv_frequencies.get(&trip.trip_id) {
           for stop_time in &self.csv_stop_times {
             if stop_time.trip_id != trip.trip_id {
@@ -381,10 +382,6 @@ impl Schedule {
             let trip_iteration: f64 =
               (arrival_time - stop_time.arrival_time.1) as f64 / frequency.headway_secs as f64;
             let trip_iteration = cmp::max(trip_iteration.round() as u64, 0);
-            println!(
-              "Chom.. {}",
-              day_time_serializer(frequency.headway_secs * trip_iteration + frequency.start_time.1,)
-            );
             return Some((
               TripDescriptor {
                 trip_id: Some(trip.trip_id.to_string()),
@@ -425,10 +422,7 @@ impl Schedule {
         }
       }
     }
-    println!("Missing trip?! {:?} Stop={:?}", arrival, csv_stop);
-    println!();
-    println!();
-    println!();
+    eprintln!("Missing trip?! {:?} Stop={:?}", arrival, csv_stop);
     None
   }
 }

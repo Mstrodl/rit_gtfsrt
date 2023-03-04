@@ -10,8 +10,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tide::{Request, Response};
 use zip::result::ZipError;
 
-pub async fn rit_protobuf(_req: Request<()>) -> tide::Result {
-  let feed = get_feed().await;
+pub async fn protobuf_route(req: Request<()>) -> tide::Result {
+  let agency_id: u64 = req
+    .param("agency_id")
+    .expect("missing agency_id url param")
+    .parse()
+    .expect("agency_id url param should be a u64");
+  let agency_code = req
+    .param("agency_code")
+    .expect("missing agency_code url param");
+  let feed = get_feed(agency_id, agency_code).await;
   // if let Err(GenFeedError::Http(err, url)) = &feed {
   //   println!("Errenous url: {:?}", err.url());
   // }
@@ -48,11 +56,11 @@ impl fmt::Display for GenFeedError {
   }
 }
 
-pub async fn get_feed() -> Result<FeedMessage, GenFeedError> {
+pub async fn get_feed(agency_id: u64, agency_code: &str) -> Result<FeedMessage, GenFeedError> {
   let mut entity: Vec<FeedEntity> = vec![];
-  let mut alert = get_alerts().await?;
+  let mut alert = get_alerts(agency_id).await?;
   entity.append(&mut alert);
-  let schedule = get_schedule().await?;
+  let schedule = get_schedule(agency_id, agency_code).await?;
   entity.append(&mut get_trip_arrivals(&schedule).await?);
   Ok(FeedMessage {
     header: FeedHeader {

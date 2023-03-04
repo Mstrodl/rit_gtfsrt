@@ -1,8 +1,11 @@
-use crate::rit_protobuf::request;
-use crate::rit_protobuf::GenFeedError;
+use crate::protobuf_route::request;
+use crate::protobuf_route::GenFeedError;
 use crate::traits::Translate;
 use chrono::DateTime;
-use gtfs_rt::{Alert, EntitySelector, FeedEntity, TimeRange};
+use gtfs_rt::{
+  alert::{Cause, Effect},
+  Alert, EntitySelector, FeedEntity, TimeRange,
+};
 use serde::Deserialize;
 
 #[allow(dead_code)]
@@ -24,11 +27,9 @@ struct Announcement {
   urgent: bool,
 }
 
-const RIT_AGENCY_ID: &str = "643";
-
-pub async fn get_alerts() -> Result<Vec<FeedEntity>, GenFeedError> {
+pub async fn get_alerts(agency_id: u64) -> Result<Vec<FeedEntity>, GenFeedError> {
   let announcements = request::<Announcements>(&format!(
-    "https://feeds.transloc.com/3/announcements?contents=true&agencies={RIT_AGENCY_ID}"
+    "https://feeds.transloc.com/3/announcements?contents=true&agencies={agency_id}"
   ))
   .await?;
   Ok(
@@ -48,14 +49,14 @@ pub async fn get_alerts() -> Result<Vec<FeedEntity>, GenFeedError> {
             end: None,
           }],
           informed_entity: vec![EntitySelector {
-            agency_id: Some(RIT_AGENCY_ID.to_string()),
+            agency_id: Some(agency_id.to_string()),
             route_id: None,
             route_type: None,
             trip: None,
             stop_id: None,
           }],
-          cause: Some(1),  // UNKNOWN
-          effect: Some(8), // UNKNOWN
+          cause: Some(Cause::UnknownCause.into()), // UNKNOWN
+          effect: Some(Effect::UnknownEffect.into()), // UNKNOWN
           url: None,
           header_text: Some(announcement.title.into_translation()),
           description_text: Some(announcement.html.into_translation()),
