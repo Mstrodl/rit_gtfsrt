@@ -44,6 +44,7 @@ pub async fn request<T: DeserializeOwned>(url: &str) -> Result<T, GenFeedError> 
 #[derive(Debug)]
 pub enum GenFeedError {
   Zip(ZipError),
+  ZipHttp(reqwest_middleware::Error, String),
   Http(reqwest::Error, String),
 }
 impl Error for GenFeedError {}
@@ -51,6 +52,7 @@ impl fmt::Display for GenFeedError {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       Self::Zip(err) => write!(f, "GenFeedError(Zip({err}))"),
+      Self::ZipHttp(err, url) => write!(f, "GenFeedError(ZipHttp({err}, {url}))"),
       Self::Http(err, url) => write!(f, "GenFeedError(Http({err}, {url}))"),
     }
   }

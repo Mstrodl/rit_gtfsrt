@@ -3,6 +3,10 @@ use crate::protobuf_route::GenFeedError;
 use chrono::{DateTime, Duration, TimeZone, Timelike, Utc};
 use chrono_tz::{America::New_York, Tz};
 use gtfs_rt::{trip_descriptor::ScheduleRelationship, TripDescriptor};
+use http_cache_reqwest::{CACacheManager, Cache, CacheMode, HttpCache};
+use lazy_static::lazy_static;
+use reqwest::Client;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::de;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -226,11 +230,24 @@ pub struct Schedule {
   pub vehicles: HashMap<u64, Vehicle>,
   // stops: HashMap<u64, Stop>,
 }
+
+lazy_static! {
+  static ref CACHING_HTTP: ClientWithMiddleware = ClientBuilder::new(Client::new())
+    .with(Cache(HttpCache {
+      mode: CacheMode::Default,
+      manager: CACacheManager::default(),
+      options: None,
+    }))
+    .build();
+}
+
 pub async fn get_schedule(agency_id: u64, agency_code: &str) -> Result<Schedule, GenFeedError> {
-  let bytes = reqwest::get("https://api.transloc.com/gtfs/rit.zip")
+  let bytes = CACHING_HTTP
+    .get("https://api.transloc.com/gtfs/rit.zip")
+    .send()
     .await
     .map_err(|err| {
-      GenFeedError::Http(
+      GenFeedError::ZipHttp(
         err,
         format!("https://api.transloc.com/gtfs/{agency_code}.zip"),
       )
