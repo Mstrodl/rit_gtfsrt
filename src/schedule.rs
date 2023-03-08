@@ -228,6 +228,7 @@ pub struct Schedule {
   csv_frequencies: HashMap<u64, CSVFrequency>,
   pub arrivals: Vec<Arrival>,
   pub vehicles: HashMap<u64, Vehicle>,
+  transit_workaround: bool,
   // stops: HashMap<u64, Stop>,
 }
 
@@ -241,7 +242,11 @@ lazy_static! {
     .build();
 }
 
-pub async fn get_schedule(agency_id: u64, agency_code: &str) -> Result<Schedule, GenFeedError> {
+pub async fn get_schedule(
+  agency_id: u64,
+  agency_code: &str,
+  transit_workaround: bool,
+) -> Result<Schedule, GenFeedError> {
   let bytes = CACHING_HTTP
     .get("https://api.transloc.com/gtfs/rit.zip")
     .send()
@@ -348,6 +353,7 @@ pub async fn get_schedule(agency_id: u64, agency_code: &str) -> Result<Schedule,
     csv_trips,
     arrivals: vehicle_statuses.arrivals,
     vehicles,
+    transit_workaround,
   })
 }
 
@@ -399,14 +405,21 @@ impl Schedule {
             let trip_iteration: f64 =
               (arrival_time - stop_time.arrival_time.1) as f64 / frequency.headway_secs as f64;
             let trip_iteration = cmp::max(trip_iteration.round() as u64, 0);
+            let start_time = frequency.headway_secs * trip_iteration + frequency.start_time.1;
             return Some((
               TripDescriptor {
-                trip_id: Some(trip.trip_id.to_string()),
+                trip_id: Some(if self.transit_workaround {
+                  format!("{}_{}", trip.trip_id, start_time)
+                } else {
+                  trip.trip_id.to_string()
+                }),
                 route_id: Some(trip.route_id.to_string()),
                 direction_id: None,
-                start_time: Some(day_time_serializer(
-                  frequency.headway_secs * trip_iteration + frequency.start_time.1,
-                )),
+                start_time: if self.transit_workaround {
+                  None
+                } else {
+                  Some(day_time_serializer(start_time))
+                },
                 start_date: None,
                 schedule_relationship: Some(ScheduleRelationship::Scheduled.into()),
               },
