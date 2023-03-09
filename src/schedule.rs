@@ -10,7 +10,6 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use serde::de;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use std::cmp;
 use std::collections::HashMap;
 use std::future::join;
 use std::io::Cursor;
@@ -406,24 +405,24 @@ impl Schedule {
             ) {
               continue;
             }
-            // println!(
-            //   "Arrival time: {}. Frequency starts at: {:?}",
-            //   day_time_serializer(arrival_time),
-            //   frequency.start_time.0
-            // );
             let trip_iteration: f64 = (arrival_time as i64 - frequency.start_time.1 as i64) as f64
               / frequency.headway_secs as f64;
-            let trip_iteration = cmp::max(trip_iteration.floor() as u64, 0);
+
+            let floored_candidate = (frequency.headway_secs as i64)
+              * (trip_iteration.floor() as i64)
+              + (stop_time.arrival_time.1 as i64);
+            let ceiled_candidate = (frequency.headway_secs as i64) * (trip_iteration.ceil() as i64)
+              + (stop_time.arrival_time.1 as i64);
+            let delta_floor = (floored_candidate - (arrival_time as i64)).abs();
+            let delta_ceil = (ceiled_candidate - (arrival_time as i64)).abs();
+            // println!("Delta floor {delta_floor} delta ceil {delta_ceil} s");
+            let trip_iteration = if delta_ceil > delta_floor {
+              floored_candidate
+            } else {
+              ceiled_candidate
+            } as u64;
+
             let start_time = frequency.headway_secs * trip_iteration + frequency.start_time.1;
-            // println!(
-            //   "Here's what we found: {}_{} {:?} {:?} {:?} {:?}",
-            //   trip.trip_id,
-            //   day_time_serializer(start_time),
-            //   csv_stop,
-            //   stop,
-            //   stop_time,
-            //   arrival
-            // );
             return Some((
               TripDescriptor {
                 trip_id: Some(if self.transit_workaround {
