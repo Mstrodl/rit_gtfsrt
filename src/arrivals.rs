@@ -93,6 +93,7 @@ pub async fn get_trip_arrivals(schedule: &Schedule) -> Result<Vec<FeedEntity>, G
         }
       })
       .unique_by(|entity| entity.id.clone())
+      .filter(|entity| entity.trip_update.is_none())
       .collect(),
   )
 }
