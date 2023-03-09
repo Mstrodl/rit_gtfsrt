@@ -93,10 +93,10 @@ pub struct StopTime {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Arrival {
   agency_id: u64,
-  call_name: String,
+  pub call_name: String,
   distance: f64,
   headsign: Option<String>,
   route_id: u64,
@@ -159,7 +159,7 @@ where
   Ok((time, value))
 }
 
-fn day_time_serializer(total_seconds: u64) -> String {
+pub fn day_time_serializer(total_seconds: u64) -> String {
   let seconds = total_seconds % 60;
   let total_minutes = total_seconds / 60;
   let minutes = total_minutes % 60;
@@ -193,8 +193,8 @@ struct CSVTrip {
   block_name: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct CSVFrequency {
+#[derive(Debug, Deserialize, Clone)]
+pub struct CSVFrequency {
   trip_id: u64,
   #[serde(deserialize_with = "day_time_deserializer")]
   start_time: (String, u64),
@@ -206,8 +206,8 @@ struct CSVFrequency {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-struct CSVStop {
+#[derive(Debug, Deserialize, Clone)]
+pub struct CSVStop {
   stop_id: u64,
   stop_code: String,
   stop_name: String,
@@ -363,7 +363,7 @@ fn nearby(real_time: u64, seconds: (String, u64)) -> bool {
   delta < 60 * 10 && delta > -60 * 10
 }
 
-fn get_arrival_time(arrival: &Arrival) -> (DateTime<Tz>, u64) {
+pub fn get_arrival_time(arrival: &Arrival) -> (DateTime<Tz>, u64) {
   let date = Utc
     .timestamp_opt(arrival.timestamp, 0)
     .single()
@@ -383,8 +383,17 @@ fn within_buffer(start_secs: u64, now: u64, end_secs: u64) -> bool {
   (start_secs - 60 * 10) < now && now < (end_secs + 60 * 10)
 }
 
+pub struct ArrivalData {
+  pub arrival: Arrival,
+  pub trip_descriptor: TripDescriptor,
+  pub stop_time: StopTime,
+  pub scheduled_arrival: u64,
+  pub csv_stop: CSVStop,
+  pub frequency: Option<CSVFrequency>,
+}
+
 impl Schedule {
-  pub fn find_trip_id(&self, arrival: &Arrival) -> Option<(TripDescriptor, StopTime)> {
+  pub fn find_trip_id(&self, arrival: &Arrival) -> Option<ArrivalData> {
     let route = self.routes.get(&arrival.route_id)?;
     let csv_route = self.csv_routes.get(&route.long_name)?;
     let stop = route.stops.iter().find(|stop| stop.id == arrival.stop_id)?;
@@ -403,11 +412,13 @@ impl Schedule {
               continue;
             }
             let trip_iteration: f64 =
-              (arrival_time - stop_time.arrival_time.1) as f64 / frequency.headway_secs as f64;
+              (arrival_time as i64 - stop_time.arrival_time.1 as i64) as f64 / frequency.headway_secs as f64;
             let trip_iteration = cmp::max(trip_iteration.round() as u64, 0);
             let start_time = frequency.headway_secs * trip_iteration + frequency.start_time.1;
-            return Some((
-              TripDescriptor {
+            let scheduled_arrival = frequency.headway_secs * trip_iteration + stop_time.arrival_time.1;
+            return Some(ArrivalData {
+              arrival: arrival.clone(),
+              trip_descriptor: TripDescriptor {
                 trip_id: Some(if self.transit_workaround {
                   format!("{}_{}", trip.trip_id, start_time)
                 } else {
@@ -423,8 +434,11 @@ impl Schedule {
                 start_date: None,
                 schedule_relationship: Some(ScheduleRelationship::Scheduled.into()),
               },
-              stop_time.clone(),
-            ));
+              stop_time: stop_time.clone(),            
+              scheduled_arrival,
+              csv_stop: csv_stop.clone(),
+              frequency: Some(frequency.clone()),
+            });
           }
         } else {
           for stop_time in &self.csv_stop_times {
@@ -436,8 +450,9 @@ impl Schedule {
               && nearby(arrival_time, stop_time.arrival_time.clone())
             {
               // trip and stop_time belong to us!
-              return Some((
-                TripDescriptor {
+              return Some(ArrivalData {
+                arrival: arrival.clone(),
+                trip_descriptor: TripDescriptor {
                   trip_id: Some(trip.trip_id.to_string()),
                   route_id: Some(trip.route_id.to_string()),
                   direction_id: None,
@@ -445,8 +460,11 @@ impl Schedule {
                   start_date: None,
                   schedule_relationship: None,
                 },
-                stop_time.clone(),
-              ));
+                stop_time: stop_time.clone(),
+                scheduled_arrival: stop_time.arrival_time.1,
+                csv_stop: csv_stop.clone(),
+                frequency: None,
+              });
             }
           }
         }
