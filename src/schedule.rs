@@ -379,7 +379,7 @@ fn get_arrival_time(arrival: &Arrival) -> (DateTime<Tz>, u64) {
   }
 }
 
-fn within_buffer(start_secs: i64, now: i64, end_secs: i64) -> bool {
+fn within_buffer(start_secs: u64, now: u64, end_secs: u64) -> bool {
   (start_secs - 60 * 10) < now && now < (end_secs + 60 * 10)
 }
 
@@ -399,31 +399,13 @@ impl Schedule {
               continue;
             }
 
-            if !within_buffer(
-              frequency.start_time.1 as i64,
-              arrival_time as i64,
-              frequency.end_time.1 as i64,
-            ) {
+            if !within_buffer(frequency.start_time.1, arrival_time, frequency.end_time.1) {
               continue;
             }
-            // println!(
-            //   "Arrival time: {}. Frequency starts at: {:?}",
-            //   day_time_serializer(arrival_time),
-            //   frequency.start_time.0
-            // );
-            let trip_iteration: f64 = (arrival_time as i64 - frequency.start_time.1 as i64) as f64
-              / frequency.headway_secs as f64;
-            let trip_iteration = cmp::max(trip_iteration.floor() as u64, 0);
+            let trip_iteration: f64 =
+              (arrival_time - stop_time.arrival_time.1) as f64 / frequency.headway_secs as f64;
+            let trip_iteration = cmp::max(trip_iteration.round() as u64, 0);
             let start_time = frequency.headway_secs * trip_iteration + frequency.start_time.1;
-            // println!(
-            //   "Here's what we found: {}_{} {:?} {:?} {:?} {:?}",
-            //   trip.trip_id,
-            //   day_time_serializer(start_time),
-            //   csv_stop,
-            //   stop,
-            //   stop_time,
-            //   arrival
-            // );
             return Some((
               TripDescriptor {
                 trip_id: Some(if self.transit_workaround {

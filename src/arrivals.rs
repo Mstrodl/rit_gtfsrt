@@ -62,7 +62,6 @@ pub async fn get_trip_arrivals(schedule: &Schedule) -> Result<Vec<FeedEntity>, G
           vehicle: None,
           alert: None,
         };
-        // println!("Here's our feed: {:?}\n\n", trip.clone());
         if let Some(vehicle) = vehicle {
           let vehicle = FeedEntity {
             id: format!("vehicle-{}", vehicle.id),
@@ -93,7 +92,6 @@ pub async fn get_trip_arrivals(schedule: &Schedule) -> Result<Vec<FeedEntity>, G
         }
       })
       .unique_by(|entity| entity.id.clone())
-      .filter(|entity| entity.trip_update.is_none())
       .collect(),
   )
 }
