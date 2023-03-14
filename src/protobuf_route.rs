@@ -29,6 +29,13 @@ pub async fn protobuf_route(req: Request<()>) -> tide::Result {
   let query: QueryParams = req.query().expect("Invalid query parameters");
 
   let feed = get_feed(agency_id, agency_code, query.transit_workaround).await;
+  if let Err(msg) = &feed {
+    eprintln!("Error: {:?}", msg);
+    eprintln!("Error: {}", msg);
+    if let Err(msg) = feed {
+      return Err(msg.into());
+    }
+  }
   // if let Err(GenFeedError::Http(err, url)) = &feed {
   //   println!("Errenous url: {:?}", err.url());
   // }

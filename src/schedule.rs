@@ -269,24 +269,15 @@ pub async fn get_schedule(
   let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(GenFeedError::Zip)?;
 
   let (stops, routes, vehicle_statuses) = join!(
-    async {
-      request::<StopOutput>(&format!(
+    request::<StopOutput>(&format!(
         "https://feeds.transloc.com/3/stops?include_routes=true&agencies={agency_id}"
-      ))
-      .await
-    },
-    async {
-      request::<RouteOutput>(&format!(
+      )),
+    request::<RouteOutput>(&format!(
         "https://feeds.transloc.com/3/routes?agencies={agency_id}"
-      ))
-      .await
-    },
-    async {
-      request::<VehicleStatuses>(&format!(
+      )),
+    request::<VehicleStatuses>(&format!(
         "https://feeds.transloc.com/3/vehicle_statuses?agencies={agency_id}&include_arrivals=true"
       ))
-      .await
-    }
   )
   .await;
   let stops = stops?;
