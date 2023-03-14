@@ -123,7 +123,7 @@ pub struct Vehicle {
   pub speed: f32,
   stop_pattern_id: u64,
   pub timestamp: u64,
-  trip_id: u64,
+  trip_id: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -270,14 +270,14 @@ pub async fn get_schedule(
 
   let (stops, routes, vehicle_statuses) = join!(
     request::<StopOutput>(&format!(
-        "https://feeds.transloc.com/3/stops?include_routes=true&agencies={agency_id}"
-      )),
+      "https://feeds.transloc.com/3/stops?include_routes=true&agencies={agency_id}"
+    )),
     request::<RouteOutput>(&format!(
-        "https://feeds.transloc.com/3/routes?agencies={agency_id}"
-      )),
+      "https://feeds.transloc.com/3/routes?agencies={agency_id}"
+    )),
     request::<VehicleStatuses>(&format!(
-        "https://feeds.transloc.com/3/vehicle_statuses?agencies={agency_id}&include_arrivals=true"
-      ))
+      "https://feeds.transloc.com/3/vehicle_statuses?agencies={agency_id}&include_arrivals=true"
+    ))
   )
   .await;
   let stops = stops?;
@@ -402,11 +402,13 @@ impl Schedule {
             if !within_buffer(frequency.start_time.1, arrival_time, frequency.end_time.1) {
               continue;
             }
-            let trip_iteration: f64 =
-              (arrival_time as i64 - stop_time.arrival_time.1 as i64) as f64 / frequency.headway_secs as f64;
+            let trip_iteration: f64 = (arrival_time as i64 - stop_time.arrival_time.1 as i64)
+              as f64
+              / frequency.headway_secs as f64;
             let trip_iteration = cmp::max(trip_iteration.round() as u64, 0);
             let start_time = frequency.headway_secs * trip_iteration + frequency.start_time.1;
-            let scheduled_arrival = frequency.headway_secs * trip_iteration + stop_time.arrival_time.1;
+            let scheduled_arrival =
+              frequency.headway_secs * trip_iteration + stop_time.arrival_time.1;
             return Some(ArrivalData {
               arrival: arrival.clone(),
               trip_descriptor: TripDescriptor {
@@ -425,7 +427,7 @@ impl Schedule {
                 start_date: None,
                 schedule_relationship: Some(ScheduleRelationship::Scheduled.into()),
               },
-              stop_time: stop_time.clone(),            
+              stop_time: stop_time.clone(),
               scheduled_arrival,
               csv_stop: csv_stop.clone(),
               frequency: Some(frequency.clone()),
