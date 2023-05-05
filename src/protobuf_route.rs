@@ -52,9 +52,14 @@ pub async fn request<T: DeserializeOwned>(url: &str) -> Result<T, GenFeedError> 
   reqwest::get(url)
     .await
     .map_err(|err| GenFeedError::Http(err, url.to_string()))?
-    .json::<T>()
+    .text()
     .await
     .map_err(|err| GenFeedError::Http(err, url.to_string()))
+    .and_then(|text| {
+      let jd = &mut serde_json::Deserializer::from_str(&text);
+
+      serde_path_to_error::deserialize(jd).map_err(GenFeedError::Deserialize)
+    })
 }
 
 #[derive(Debug)]
@@ -62,6 +67,7 @@ pub enum GenFeedError {
   Zip(ZipError),
   ZipHttp(reqwest_middleware::Error, String),
   Http(reqwest::Error, String),
+  Deserialize(serde_path_to_error::Error<serde_json::Error>),
 }
 impl Error for GenFeedError {}
 impl fmt::Display for GenFeedError {
@@ -70,6 +76,7 @@ impl fmt::Display for GenFeedError {
       Self::Zip(err) => write!(f, "GenFeedError(Zip({err}))"),
       Self::ZipHttp(err, url) => write!(f, "GenFeedError(ZipHttp({err}, {url}))"),
       Self::Http(err, url) => write!(f, "GenFeedError(Http({err}, {url}))"),
+      Self::Deserialize(err) => write!(f, "Deserialize({err})"),
     }
   }
 }
