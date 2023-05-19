@@ -28,10 +28,17 @@ struct Announcement {
 }
 
 pub async fn get_alerts(agency_id: u64) -> Result<Vec<FeedEntity>, GenFeedError> {
-  let announcements = request::<Announcements>(&format!(
+  let announcements = match request::<Announcements>(&format!(
     "https://feeds.transloc.com/3/announcements?contents=true&agencies={agency_id}"
   ))
-  .await?;
+  .await
+  {
+    Ok(announcements) => announcements,
+    Err(err) => {
+      log::error!("Couldn't request announcements: {err}");
+      return Ok(vec![]);
+    }
+  };
   Ok(
     announcements
       .announcements

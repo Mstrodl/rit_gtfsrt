@@ -2156,6 +2156,7 @@ dependencies = [
  "http-cache-reqwest",
  "itertools",
  "lazy_static",
+ "log",
  "prost",
  "reqwest",
  "reqwest-middleware",
