@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::cmp;
 use std::collections::HashMap;
-use std::future::join;
+// use std::future::join;
 use std::io::Cursor;
 use zip::ZipArchive;
 
@@ -114,7 +114,7 @@ pub struct Vehicle {
   pub call_name: String,
   current_stop_id: Option<u64>,
   pub heading: f32,
-  pub load: f64,
+  pub load: Option<f64>,
   next_stop: Option<u64>,
   off_route: bool,
   pub position: (f32, f32),
@@ -268,18 +268,17 @@ pub async fn get_schedule(
   let bytes = Vec::from(bytes);
   let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(GenFeedError::Zip)?;
 
-  let (stops, routes, vehicle_statuses) = join!(
-    request::<StopOutput>(&format!(
-      "https://feeds.transloc.com/3/stops?include_routes=true&agencies={agency_id}"
-    )),
-    request::<RouteOutput>(&format!(
-      "https://feeds.transloc.com/3/routes?agencies={agency_id}"
-    )),
-    request::<VehicleStatuses>(&format!(
-      "https://feeds.transloc.com/3/vehicle_statuses?agencies={agency_id}&include_arrivals=true"
-    ))
-  )
-  .await;
+  let stops =
+    format!("https://feeds.transloc.com/3/stops?include_routes=true&agencies={agency_id}");
+  let routes = format!("https://feeds.transloc.com/3/routes?agencies={agency_id}");
+  let vehicle_statuses = format!(
+    "https://feeds.transloc.com/3/vehicle_statuses?agencies={agency_id}&include_arrivals=true"
+  );
+  let (stops, routes, vehicle_statuses) = tokio::join!(
+    request::<StopOutput>(&stops),
+    request::<RouteOutput>(&routes),
+    request::<VehicleStatuses>(&vehicle_statuses)
+  );
   let stops = stops?;
   let routes = routes?;
   let vehicle_statuses = vehicle_statuses?;
